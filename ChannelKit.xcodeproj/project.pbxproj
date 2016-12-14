@@ -21,6 +21,7 @@
 		BBD3DEFA1E01A1B90061EC19 /* LoginLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBD3DEF91E01A1B90061EC19 /* LoginLogic.swift */; };
 		BBD3DEFC1E01A1C80061EC19 /* Reactive.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBD3DEFB1E01A1C70061EC19 /* Reactive.swift */; };
 		BBD3DF001E01A35E0061EC19 /* ChannelKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BBD3DEA61E01A09D0061EC19 /* ChannelKit.framework */; };
+		BBD3DF021E01AB570061EC19 /* UIKit+reactive.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBD3DF011E01AB570061EC19 /* UIKit+reactive.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -67,6 +68,7 @@
 		BBD3DEF71E01A1A90061EC19 /* Main.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; path = Main.storyboard; sourceTree = "<group>"; };
 		BBD3DEF91E01A1B90061EC19 /* LoginLogic.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LoginLogic.swift; sourceTree = "<group>"; };
 		BBD3DEFB1E01A1C70061EC19 /* Reactive.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Reactive.swift; sourceTree = "<group>"; };
+		BBD3DF011E01AB570061EC19 /* UIKit+reactive.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "UIKit+reactive.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -132,6 +134,7 @@
 				BBD3DEAA1E01A09D0061EC19 /* Info.plist */,
 				BBD3DEF21E01A1770061EC19 /* Dispatch.swift */,
 				BBD3DEFB1E01A1C70061EC19 /* Reactive.swift */,
+				BBD3DF011E01AB570061EC19 /* UIKit+reactive.swift */,
 			);
 			path = ChannelKit;
 			sourceTree = "<group>";
@@ -348,6 +351,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BBD3DF021E01AB570061EC19 /* UIKit+reactive.swift in Sources */,
 				BBD3DEFC1E01A1C80061EC19 /* Reactive.swift in Sources */,
 				BBD3DEF31E01A1770061EC19 /* Dispatch.swift in Sources */,
 			);
@@ -653,6 +657,7 @@
 				BBD3DEBC1E01A09D0061EC19 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 		BBD3DEBD1E01A09D0061EC19 /* Build configuration list for PBXNativeTarget "ChannelKitTests" */ = {
 			isa = XCConfigurationList;
@@ -661,6 +666,7 @@
 				BBD3DEBF1E01A09D0061EC19 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 		BBD3DEE91E01A1120061EC19 /* Build configuration list for PBXNativeTarget "Demo" */ = {
 			isa = XCConfigurationList;
@@ -669,6 +675,7 @@
 				BBD3DEEB1E01A1120061EC19 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 		BBD3DEEC1E01A1120061EC19 /* Build configuration list for PBXNativeTarget "DemoTests" */ = {
 			isa = XCConfigurationList;
@@ -677,6 +684,7 @@
 				BBD3DEEE1E01A1120061EC19 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
