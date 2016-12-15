@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		BB17C2921E02B5EB00E254D9 /* Foundation+reactive.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB17C2911E02B5EB00E254D9 /* Foundation+reactive.swift */; };
 		BBD3DEB01E01A09D0061EC19 /* ChannelKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BBD3DEA61E01A09D0061EC19 /* ChannelKit.framework */; };
 		BBD3DEB51E01A09D0061EC19 /* ChannelKitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBD3DEB41E01A09D0061EC19 /* ChannelKitTests.swift */; };
 		BBD3DEB71E01A09D0061EC19 /* ChannelKit.h in Headers */ = {isa = PBXBuildFile; fileRef = BBD3DEA91E01A09D0061EC19 /* ChannelKit.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -49,6 +50,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		BB17C2911E02B5EB00E254D9 /* Foundation+reactive.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "Foundation+reactive.swift"; sourceTree = "<group>"; };
 		BBD3DEA61E01A09D0061EC19 /* ChannelKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = ChannelKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		BBD3DEA91E01A09D0061EC19 /* ChannelKit.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ChannelKit.h; sourceTree = "<group>"; };
 		BBD3DEAA1E01A09D0061EC19 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -135,6 +137,7 @@
 				BBD3DEF21E01A1770061EC19 /* Dispatch.swift */,
 				BBD3DEFB1E01A1C70061EC19 /* Reactive.swift */,
 				BBD3DF011E01AB570061EC19 /* UIKit+reactive.swift */,
+				BB17C2911E02B5EB00E254D9 /* Foundation+reactive.swift */,
 			);
 			path = ChannelKit;
 			sourceTree = "<group>";
@@ -352,6 +355,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				BBD3DF021E01AB570061EC19 /* UIKit+reactive.swift in Sources */,
+				BB17C2921E02B5EB00E254D9 /* Foundation+reactive.swift in Sources */,
 				BBD3DEFC1E01A1C80061EC19 /* Reactive.swift in Sources */,
 				BBD3DEF31E01A1770061EC19 /* Dispatch.swift in Sources */,
 			);

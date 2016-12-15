@@ -147,6 +147,7 @@ public class Channel<T> {
     fileprivate var lock: DispatchQueue!
     fileprivate var queue: DispatchQueue!
     public private(set) var last: Result<T>?
+    private var cleanup: (() -> Void)?
     
     fileprivate init() {
         lock = DispatchQueue(label: "com.hibu.Channel.\(Unmanaged.passUnretained(self).toOpaque())")
@@ -159,6 +160,11 @@ public class Channel<T> {
     
     deinit {
         print("\(self) - deinit")
+        if let cleanup = cleanup {
+            Queue.main.async {
+                cleanup()
+            }
+        }
     }
     
     fileprivate func send(result: Result<T>) {
@@ -199,6 +205,12 @@ public class Channel<T> {
         willSet(new) {
             assert(!cancelled, "Input was cancelled. Cannot be reused.")
             assert(new == nil || next == nil, "bind, join, split, ... can only be called once")
+        }
+    }
+    
+    public func setCleanup(closure: @escaping () -> Void) {
+        lock.sync {
+            cleanup = closure
         }
     }
     
