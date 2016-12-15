@@ -32,13 +32,16 @@ public final class Input<T> {
     private weak var _channel: Channel<T>?
     private var cancelled = false
     private var lock: DispatchQueue!
+    public var debug = false
     
     public init () {
         lock = DispatchQueue(label: "com.hibu.Channel.Input.\(Unmanaged.passUnretained(self).toOpaque())")
     }
     
     deinit {
-        print("\(self) - deinit")
+        if debug {
+            print("\(self) - deinit")
+        }
     }
     
     
@@ -47,10 +50,12 @@ public final class Input<T> {
         return lock.sync {
             assert(!cancelled, "Input was cancelled. Cannot be reused.")
             if let channel = _channel {
+                channel.debug = debug
                 return channel
             } else {
                 let channel = Channel<T>(parent: self)
                 _channel = channel
+                channel.debug = debug
                 return channel
             }
         }
@@ -61,6 +66,9 @@ public final class Input<T> {
     ///
     /// - Parameter value: the value to be sent
     public func send(value: T) {
+        if debug {
+            print("\(self) - sending: \(value)")
+        }
         lock.sync {
             assert(!self.cancelled, "Input was cancelled. Cannot be reused.")
             self._channel?.send(result: Result(value: value))
@@ -71,6 +79,10 @@ public final class Input<T> {
     ///
     /// - Parameter value: the value to be sent
     public func send(values: [T]) {
+        if debug {
+            print("\(self) - sending: \(values)")
+        }
+
         lock.sync {
             assert(!self.cancelled, "Input was cancelled. Cannot be reused.")
             for value in values {
@@ -83,6 +95,10 @@ public final class Input<T> {
     ///
     /// - Parameter error: the error to be sent
     public func send(error: Error) {
+        if debug {
+            print("\(self) - sending: \(error)")
+        }
+
         lock.sync {
             assert(!self.cancelled, "Input was cancelled. Cannot be reused.")
             self._channel?.send(result: Result(error: error))
@@ -92,6 +108,10 @@ public final class Input<T> {
     
     /// for the cases where releasing the output is not convenient
     public func cancel() {
+        if debug {
+            print("\(self) - cancelling")
+        }
+
         lock.sync {
             self._channel?.send(result: Result(error: ChannelError.cancelled))
             self._channel = nil
@@ -108,6 +128,7 @@ public class Output<T> {
     private var completion: ((Result<T>) -> Void)?
     private var queue: Queue
     public fileprivate(set) var last: Result<T>?
+    public var debug = false
     
     deinit {
         print("\(self) - deinit")
@@ -148,6 +169,7 @@ public class Channel<T> {
     fileprivate var queue: DispatchQueue!
     public private(set) var last: Result<T>?
     private var cleanup: (() -> Void)?
+    public var debug = false
     
     fileprivate init() {
         lock = DispatchQueue(label: "com.hibu.Channel.\(Unmanaged.passUnretained(self).toOpaque())")
@@ -168,6 +190,9 @@ public class Channel<T> {
     }
     
     fileprivate func send(result: Result<T>) {
+        if debug {
+            print("\(self) - received \(result)")
+        }
         if lock.isCurrent {
             _send(result: result)
         }
@@ -227,6 +252,7 @@ public class Channel<T> {
                     channel?.send(result: new)
                 }
             }
+            channel.debug = self.debug
             return channel
         }
     }
@@ -242,6 +268,7 @@ public class Channel<T> {
         return lock.sync {
             assert(!cancelled, "Input was cancelled. Cannot be reused.")
             let outChannel = Channel<T>()
+            outChannel.debug = self.debug || channel.debug
             
             let output = channel.subscribe(queue: lock) { [weak outChannel, unowned self] (result) in
                 if onlyIfBothResultsAvailable {
@@ -334,6 +361,8 @@ public class Channel<T> {
             assert(!cancelled, "Input was cancelled. Cannot be reused.")
             let a = Channel(parent: self)
             let b = Channel(parent: self)
+            a.debug = self.debug
+            b.debug = self.debug
             
             next = { [weak a, weak b] result in
                 
@@ -368,6 +397,7 @@ public class Channel<T> {
         return lock.sync {
             assert(!cancelled, "Input was cancelled. Cannot be reused.")
             let output = Output(parent: self, queue: queue, completion: completion)
+            output.debug = self.debug
             output.last = self.last
             next = { [weak output] result in
                 output?.send(result: result)
@@ -479,6 +509,7 @@ extension Channel where T: Stream {
             assert(!cancelled, "Input was cancelled. Cannot be reused.")
             let retains: [Any] = [self]
             let channel = Channel<V>(parent: retains)
+            channel.debug = self.debug
             next = { [weak channel] result in
                 if let channel = channel {
                     switch result {
@@ -566,8 +597,6 @@ extension Channel {
 // ideas for extending:
 
 // - grouping
-// - debugging (log of events)
-// - integration with textFields, buttons, ...
 // - integration with NetKit
 // - integration with TableViewManager
 
