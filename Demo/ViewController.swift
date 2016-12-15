@@ -16,26 +16,21 @@ class ViewController: UIViewController, UITextFieldDelegate {
     @IBOutlet var login: UIButton!
     
     var logic: LoginLogic!
-    var loginEnabledOutput: Output<Bool>?
-    var loginActionOutput: Output<(String,String)>?
+    var outputs = [Any]()
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
         logic = LoginLogic(email: email.channel, password: password.channel, login: login.channel)
         
-        loginEnabledOutput = logic.loginEnabled.subscribe(initial: false) { [unowned self] result in
-            if case let .success(enabled) = result {
-                self.login.isEnabled = enabled
-            }
-        }
+        login.setEnabled(with: logic.loginEnabled)
         
-        loginActionOutput = logic.loginAction.subscribe { (result) in
+        let loginActionOutput = logic.loginAction.subscribe { (result) in
             if case let .success((email, psw)) = result {
                 print("action received with email: \(email) password: \(psw)")
             }
         }
-        
+        outputs = [loginActionOutput]
     }
 
     override func didReceiveMemoryWarning() {
