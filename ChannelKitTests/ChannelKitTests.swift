@@ -175,5 +175,37 @@ class ChannelKitTests: XCTestCase {
         
     }
     
+    func testChannelThrottle() {
+        let expectation = self.expectation(description: #function)
+        
+        let values = [1,2,3,4,5,6,7,8,9,10]
+        var results = [Int]()
+        
+        let input = Input<Int>()
+        
+        let channel = input.channel
+        
+        let output = input.channel.throttle(0.001).subscribe { (result) in
+            if case let .success(value) = result {
+                results.append(value)
+            }
+        }
+        
+        for value in values {
+            input.send(value: value)
+        }
+        
+        Queue.global().after(1.0) {
+            XCTAssert(values.count > results.count)
+            XCTAssert(results.count > 1)
+            expectation.fulfill()
+        }
+        
+        self.waitForExpectations(timeout: 10) { (error: Error?) -> Void in
+            output.cancel()
+        }
+    }
+
+    
 }
 

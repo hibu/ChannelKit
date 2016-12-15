@@ -23,12 +23,12 @@ class LoginLogic {
     }
     
     var loginEnabled: Channel<Bool> {
-        let emailValid = email.map { [unowned self] (email) -> Bool in
+        let emailValid = email.throttle(0.25).map { [unowned self] (email) -> Bool in
             return self.isEmailValid(email)
         }
         .distinct()
         
-        let passwordValid = password.map { [unowned self] (password) -> Bool in
+        let passwordValid = password.throttle(0.25).map { [unowned self] (password) -> Bool in
             return self.isPasswordValid(password)
         }
         .distinct()

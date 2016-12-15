@@ -520,9 +520,51 @@ extension Channel where T: Stream {
 
 }
 
+extension Channel {
+    
+    public func throttle(_ interval: TimeInterval) -> Channel<T> {
+        var waitUntilDate: Date = Date()
+        var timer: DispatchSourceTimer?
+        var channel: Channel<T>?
+
+        func scheduleTimer(_ interval: TimeInterval, handler: @escaping () -> Void) -> DispatchSourceTimer {
+            let timer = DispatchSource.makeTimerSource(queue: Queue.main)
+            timer.setEventHandler(handler: handler)
+            timer.scheduleOneshot(deadline: .now() + interval, leeway: .milliseconds(20))
+            timer.resume()
+            return timer
+        }
+        
+        channel = bind { result -> (Result<T>?) in
+            
+            if waitUntilDate.timeIntervalSinceNow < 0 {
+                waitUntilDate = Date(timeIntervalSinceNow: interval)
+                timer?.cancel()
+                timer = nil
+                return result
+            } else {
+                let newInterval = waitUntilDate.timeIntervalSinceNow
+                timer?.cancel()
+                timer = nil
+                
+                timer = scheduleTimer(newInterval) { [weak channel] in
+                    if let channel = channel {
+                        timer = nil
+                        waitUntilDate = Date(timeIntervalSinceNow: interval)
+                        channel.send(result: result)
+                    }
+                }
+                return nil
+            }
+        }
+        
+        return channel!
+    }
+    
+}
+
 // ideas for extending:
 
-// - throttling (only forward values after a timeout: )
 // - grouping
 // - debugging (log of events)
 // - integration with textFields, buttons, ...
