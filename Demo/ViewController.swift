@@ -26,7 +26,7 @@ class ViewController: UIViewController, UITextFieldDelegate {
         login.isEnabled(with: logic.loginEnabled)
         /* as an example, this is how you would implement the previous line without using UIKit+reactive integration:  */
         
-//        let loginEnabledOutput = logic.loginEnabled.subscribe { (result) in
+//        let loginEnabledOutput = logic.loginEnabled.subscribe { [unowned self] (result) in
 //            
 //            switch result {
 //            case let .success(value):
