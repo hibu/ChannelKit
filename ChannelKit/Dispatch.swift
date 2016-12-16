@@ -148,7 +148,7 @@ private let configureDispatchQueue: Bool = {
 /**
  DispatchOnce
  
- Implementation of dispatch_once in a way that can be more usefull than just using static variables
+ Implementation of dispatch_once in a way that can be more useful than just using static variables
  
  *example:*
  
