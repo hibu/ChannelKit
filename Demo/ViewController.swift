@@ -23,14 +23,22 @@ class ViewController: UIViewController, UITextFieldDelegate {
         
         logic = LoginLogic(email: email.channel, password: password.channel, login: login.channel)
         
-        login.setEnabled(with: logic.loginEnabled)
+        login.isEnabled(with: logic.loginEnabled)
+        /* as an example, this is how you would implement the previous line without using UIKit+reactive integration:  */
+        
+//        let loginEnabledOutput = logic.loginEnabled.subscribe { (result) in
+//            if case let .success(value) = result {
+//                self.login.isEnabled = value
+//            }
+//        }
+//        outputs.append(loginEnabledOutput)
         
         let loginActionOutput = logic.loginAction.subscribe { (result) in
             if case let .success((email, psw)) = result {
                 print("action received with email: \(email) password: \(psw)")
             }
         }
-        outputs = [loginActionOutput]
+        outputs.append(loginActionOutput)
     }
 
     override func didReceiveMemoryWarning() {

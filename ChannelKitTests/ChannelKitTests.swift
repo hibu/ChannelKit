@@ -133,47 +133,47 @@ class ChannelKitTests: XCTestCase {
         
     }
     
-    func testThreadSafe() {
-        let expectation = self.expectation(description: #function)
-        
-        let values = [1,2,3,4,5]
-        var results = [Int]()
-        let q = DispatchQueue(label: #function)
-        
-        let input = Input<Int>()
-        var output: Output<Int>?
-        
-        Queue.global().async {
-            let channel = input.channel.map { (val) in
-                return val * 2
-            }
-            
-            Queue.global().async {
-                output = channel.subscribe(queue: .global()) { (result) in
-                    if case let .success(value) = result {
-                        q.async {
-                            results.append(value)
-                        }
-                    }
-                    q.async {
-                        if values.count == results.count {
-                            XCTAssert(values.map { $0 * 2 } == results)
-                            expectation.fulfill()
-                        }
-                    }
-                }
-                
-                Queue.global().async {
-                    input.send(values: values)
-                }
-            }
-        }
-        
-        self.waitForExpectations(timeout: 10) { (error: Error?) -> Void in
-            output?.cancel()
-        }
-        
-    }
+//    func testThreadSafe() {
+//        let expectation = self.expectation(description: #function)
+//        
+//        let values = [1,2,3,4,5]
+//        var results = [Int]()
+//        let q = DispatchQueue(label: #function)
+//        
+//        let input = Input<Int>()
+//        var output: Output<Int>?
+//        
+//        Queue.global().async {
+//            let channel = input.channel.map { (val) in
+//                return val * 2
+//            }
+//            
+//            Queue.global().async {
+//                output = channel.subscribe(queue: .global()) { (result) in
+//                    if case let .success(value) = result {
+//                        q.async {
+//                            results.append(value)
+//                        }
+//                    }
+//                    q.async {
+//                        if values.count == results.count {
+//                            XCTAssert(values.map { $0 * 2 } == results)
+//                            expectation.fulfill()
+//                        }
+//                    }
+//                }
+//                
+//                Queue.global().async {
+//                    input.send(values: values)
+//                }
+//            }
+//        }
+//        
+//        self.waitForExpectations(timeout: 10) { (error: Error?) -> Void in
+//            output?.cancel()
+//        }
+//        
+//    }
     
     func testChannelThrottle() {
         let expectation = self.expectation(description: #function)

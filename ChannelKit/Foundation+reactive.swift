@@ -10,6 +10,13 @@ import Foundation
 
 extension NotificationCenter {
     
+    
+    /// registers a channel as an observer
+    ///
+    /// - Parameters:
+    ///   - name: notification name
+    ///   - object: object sending the notification
+    /// - Returns: a channel. When that channel is released, it unregisters automatically from the notification center
     public func channel( forName name: Notification.Name, object: Any?) -> Channel<Notification> {
         
         let input = Input<Notification>()

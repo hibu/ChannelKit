@@ -61,6 +61,10 @@ public final class Input<T> {
         }
     }
     
+    public func hasChannel() -> Bool {
+        return lock.sync { _channel != nil }
+    }
+    
     
     /// send a value through the channel
     ///
@@ -160,7 +164,7 @@ public class Output<T> {
 
 // A simple channel is made of one or more objects of this class, plus one Input and one Output.
 // Each channel object has a strong reference on the previous channel, but never retains the input.
-
+// unless you specify a queue, all closures are executed on the same thread input.send() was called on.
 public class Channel<T> {
     
     fileprivate var cancelled = false
@@ -170,6 +174,13 @@ public class Channel<T> {
     public private(set) var last: Result<T>?
     private var cleanup: (() -> Void)?
     public var debug = false
+    
+    fileprivate var next: ((Result<T>) -> Void)? {
+        willSet(new) {
+            assert(!cancelled, "Input was cancelled. Cannot be reused.")
+            assert(new == nil || next == nil, "bind, join, split, ... can only be called once")
+        }
+    }
     
     fileprivate init() {
         lock = DispatchQueue(label: "com.hibu.Channel.\(Unmanaged.passUnretained(self).toOpaque())")
@@ -190,18 +201,22 @@ public class Channel<T> {
     }
     
     fileprivate func send(result: Result<T>) {
+        assert(!lock.isCurrent)
+        
         if debug {
             print("\(self) - received \(result)")
         }
-        if lock.isCurrent {
-            _send(result: result)
+        
+//        var next: (Result<T>) -> Void
+        
+        let next = lock.sync {
+            return self.next
         }
-        lock.sync {
-            _send(result: result)
-        }
+        
+        _send(result: result, next: next)
     }
 
-    private func _send(result: Result<T>) {
+    private func _send(result: Result<T>, next: ((Result<T>) -> Void)?) {
         assert(!cancelled, "Input was cancelled. Cannot be reused.")
         
         if case let .failure(error) = result {
@@ -209,28 +224,13 @@ public class Channel<T> {
                 throw error
             } catch ChannelError.cancelled  {
                 cancel()
-            } catch {
-                self.runNext(result)
-            }
-        } else {
-            self.runNext(result)
+            } catch {}
         }
         
-        last = result
-    }
-    
-    private func runNext(_ result: Result<T>) {
-        assert(lock.isCurrent)
         if let next = next {
             next(result)
         }
-    }
-    
-    fileprivate var next: ((Result<T>) -> Void)? {
-        willSet(new) {
-            assert(!cancelled, "Input was cancelled. Cannot be reused.")
-            assert(new == nil || next == nil, "bind, join, split, ... can only be called once")
-        }
+        last = result
     }
     
     public func setCleanup(closure: @escaping () -> Void) {
@@ -239,16 +239,18 @@ public class Channel<T> {
         }
     }
     
+    
+    
     /// creates a new Channel object and gives a way to map the result
     ///
     /// - Parameter transform: Defines how to map the result
     /// - Returns: returns a new Channel of potentially a different type
-    fileprivate func bind<U>(queue: DispatchQueue = .global(), transform: @escaping (Result<T>) -> Result<U>?) -> Channel<U> {
+    fileprivate func bind<U>(queue: DispatchQueue? = nil, transform: @escaping (Result<T>) -> Result<U>?) -> Channel<U> {
         return lock.sync {
             assert(!cancelled, "Input was cancelled. Cannot be reused.")
             let channel = Channel<U>(parent: self)
             next = { [weak channel] result in
-                queue.async {
+                execute(async: queue) {
                     if let new = transform(result) {
                         channel?.send(result: new)
                     }
@@ -263,12 +265,12 @@ public class Channel<T> {
     ///
     /// - Parameter transform: Defines how to map the result
     /// - Returns: returns a new Channel of potentially a different type
-    fileprivate func bind2<U>(queue: DispatchQueue = .global(), transform: @escaping (Result<T>, (Result<U>?) -> Void) -> Void) -> Channel<U> {
+    fileprivate func bind<U>(queue: DispatchQueue? = nil, transform: @escaping (Result<T>, (Result<U>?) -> Void) -> Void) -> Channel<U> {
         return lock.sync {
             assert(!cancelled, "Input was cancelled. Cannot be reused.")
             let channel = Channel<U>(parent: self)
             next = { [weak channel] result in
-                queue.async {
+                execute(async: queue) {
                     transform(result) { new in
                         if let new = new {
                             channel?.send(result: new)
@@ -289,7 +291,7 @@ public class Channel<T> {
     ///   - onlyIfBothResultsAvailable: Optional flag. When set, transform will only be called when the two results are available.
     ///   - transform: A closure that allows to specify how to 'mix' the values
     /// - Returns: A new channel of the same type
-    public func join(channel: Channel<T>, onlyIfBothResultsAvailable: Bool = false, queue: DispatchQueue = .global(), transform: @escaping (Result<T>?, Result<T>?, @escaping (Result<T>?) -> Void) -> Void) -> Channel<T> {
+    public func join(channel: Channel<T>, onlyIfBothResultsAvailable: Bool = false, queue: DispatchQueue? = nil, transform: @escaping (Result<T>?, Result<T>?, @escaping (Result<T>?) -> Void) -> Void) -> Channel<T> {
         return lock.sync {
             assert(!cancelled, "Input was cancelled. Cannot be reused.")
             let outChannel = Channel<T>()
@@ -298,7 +300,7 @@ public class Channel<T> {
             let output = channel.subscribe(queue: lock) { [weak outChannel, unowned self] (result) in
                 if onlyIfBothResultsAvailable {
                     if let last = self.last, let outChannel = outChannel {
-                        queue.async {
+                        execute(async: queue) {
                             transform(last, result) { value in
                                 if let value = value {
                                     outChannel.send(result: value)
@@ -307,7 +309,7 @@ public class Channel<T> {
                         }
                     }
                 } else {
-                    queue.async {
+                    execute(async: queue) {
                         transform(nil, result) { value in
                             if let value = value {
                                 outChannel?.send(result: value)
@@ -320,7 +322,7 @@ public class Channel<T> {
             next = { [weak outChannel, weak output] result in
                 if onlyIfBothResultsAvailable {
                     if let last = output?.last {
-                        queue.async {
+                        execute(async: queue) {
                             transform(result, last) { value in
                                 if let value = value {
                                     outChannel?.send(result: value)
@@ -329,7 +331,7 @@ public class Channel<T> {
                         }
                     }
                 } else {
-                    queue.async {
+                    execute(async: queue) {
                         transform(result, nil) { value in
                             if let value = value {
                                 outChannel?.send(result: value)
@@ -381,7 +383,7 @@ public class Channel<T> {
     /// Allows a channel to be split into two channels of the same type.
     /// - Parameter transform: Optional transform closure lets you specify what happens to the values
     /// - Returns: a couple of channels of the same type.
-    public func split(queue: DispatchQueue = .main, transform: ((Result<T>, (Result<T>?, Result<T>?) -> Void) -> Void)? = nil) -> (Channel<T>, Channel<T>) {
+    public func split(queue: DispatchQueue? = nil, transform: ((Result<T>, (Result<T>?, Result<T>?) -> Void) -> Void)? = nil) -> (Channel<T>, Channel<T>) {
         return lock.sync {
             assert(!cancelled, "Input was cancelled. Cannot be reused.")
             let a = Channel(parent: self)
@@ -392,7 +394,7 @@ public class Channel<T> {
             next = { [weak a, weak b] result in
                 
                 if let transform = transform {
-                    queue.async {
+                    execute(async: queue) {
                         transform(result) { (r1, r2) in
                             if let r = r1 {
                                 a?.send(result: r)
@@ -436,11 +438,17 @@ public class Channel<T> {
     
     /// sometimes, releasing the output is not practical, so instead you can just call cancel
     func cancel() {
-        lock.sync {
+        
+        let next: ((Result<T>) -> Void)? = lock.sync {
             parent = nil
-            runNext(Result(error: ChannelError.cancelled))
-            next = nil
             cancelled = true
+            let n = self.next
+            self.next = nil
+            return n
+        }
+        
+        if let next = next {
+            next(Result(error: ChannelError.cancelled))
         }
     }
     
@@ -452,7 +460,7 @@ extension Channel {
     ///
     /// - Parameter transform: Defines how to map the values
     /// - Returns: returns a new Channel of potentially a different type
-    public func map<U>(queue: DispatchQueue = .global(), transform: @escaping (T) -> U) -> Channel<U> {
+    public func map<U>(queue: DispatchQueue? = nil, transform: @escaping (T) -> U) -> Channel<U> {
         return bind(queue: queue) { result in
             switch result {
             case let .success(value):
@@ -468,8 +476,8 @@ extension Channel {
     ///
     /// - Parameter transform: Defines how to map the values
     /// - Returns: returns a new Channel of potentially a different type
-    public func map<U>(queue: DispatchQueue = .global(), transform: @escaping (T, (U?) -> Void) -> Void) -> Channel<U> {
-        return bind2(queue: queue) { result, completion in
+    public func map<U>(queue: DispatchQueue? = nil, transform: @escaping (T, (U?) -> Void) -> Void) -> Channel<U> {
+        return bind(queue: queue) { result, completion in
             switch result {
             case let .success(value):
                 transform(value) { new in
@@ -490,7 +498,7 @@ extension Channel {
     ///
     /// - Parameter isIncluded: A closure that takes a value and decides if it should be sent or not.
     /// - Returns: returns a new channel of the same type.
-    public func filter(queue: DispatchQueue = .global(), isIncluded: @escaping (T) -> Bool) -> Channel<T> {
+    public func filter(queue: DispatchQueue? = nil, isIncluded: @escaping (T) -> Bool) -> Channel<T> {
         return bind(queue: queue) { result in
             switch result {
             case let .success(value):
@@ -508,8 +516,8 @@ extension Channel {
     ///
     /// - Parameter isIncluded: A closure that takes a value and decides if it should be sent or not.
     /// - Returns: returns a new channel of the same type.
-    public func filter(queue: DispatchQueue = .global(), isIncluded: @escaping (T, (Bool) -> Void) -> Void) -> Channel<T> {
-        return bind2(queue: queue) { result, completion in
+    public func filter(queue: DispatchQueue? = nil, isIncluded: @escaping (T, (Bool) -> Void) -> Void) -> Channel<T> {
+        return bind(queue: queue) { result, completion in
             switch result {
             case let .success(value):
                 isIncluded(value) { flag in
@@ -532,7 +540,7 @@ extension Channel {
     ///   - initialResult: could be an empty collection or string or 0
     ///   - nextPartialResult: a closure that returns a partial result
     /// - Returns: a new channel of the type of the initial result
-    public func reduce<U>(queue: DispatchQueue = .global(), initialResult: U, nextPartialResult: @escaping (U, T) -> U) -> Channel<U> {
+    public func reduce<U>(queue: DispatchQueue? = nil, initialResult: U, nextPartialResult: @escaping (U, T) -> U) -> Channel<U> {
         var currentResult = initialResult // this mutable variable should really be protected by the lock
 
         return bind(queue: queue) { result in
@@ -552,10 +560,10 @@ extension Channel {
     ///   - initialResult: could be an empty collection or string or 0
     ///   - nextPartialResult: a closure that returns a partial result
     /// - Returns: a new channel of the type of the initial result
-    public func reduce<U>(queue: DispatchQueue = .global(), initialResult: U, nextPartialResult: @escaping (U, T, (U) -> Void) -> Void) -> Channel<U> {
+    public func reduce<U>(queue: DispatchQueue? = nil, initialResult: U, nextPartialResult: @escaping (U, T, (U) -> Void) -> Void) -> Channel<U> {
         var currentResult = initialResult // this mutable variable should really be protected by the lock
         
-        return bind2(queue: queue) { result, completion in
+        return bind(queue: queue) { result, completion in
             switch result {
             case let .success(value):
                 nextPartialResult(currentResult, value) { new in
@@ -606,7 +614,7 @@ extension Channel where T: Stream {
     ///
     /// - Parameter transform: a closure that converts results
     /// - Returns: a new channel
-    public func flatBind<U, V>(queue: DispatchQueue = .global(), transform: @escaping (Result<U>) -> Result<V>?) -> Channel<V> {
+    public func flatBind<U, V>(queue: DispatchQueue? = nil, transform: @escaping (Result<U>) -> Result<V>?) -> Channel<V> {
         return lock.sync {
             assert(!cancelled, "Input was cancelled. Cannot be reused.")
             let retains: [Any] = [self]
@@ -617,7 +625,7 @@ extension Channel where T: Stream {
                     switch result {
                     case let .success(value):
                         let output = (value as! Channel<U>).subscribe(completion: { (subResult) in
-                            queue.async {
+                            execute(async: queue) {
                                 if let new = transform(subResult) {
                                     channel.send(result: new)
                                 }
@@ -627,7 +635,7 @@ extension Channel where T: Stream {
                         retains.append(output)
                         channel.parent = retains
                     case let .failure(error):
-                        queue.async {
+                        execute(async: queue) {
                             if let new = transform(Result<U>(error: error)) {
                                 channel.send(result: new)
                             }
@@ -643,7 +651,7 @@ extension Channel where T: Stream {
     ///
     /// - Parameter transform: a closure that converts values
     /// - Returns: a new channel
-    public func flatMap<U,V>(queue: DispatchQueue = .global(), transform: @escaping (U) -> V? ) -> Channel<V> {
+    public func flatMap<U,V>(queue: DispatchQueue? = nil, transform: @escaping (U) -> V? ) -> Channel<V> {
         return flatBind(queue: queue) { (result: Result<U>) -> Result<V>? in
             switch result {
             case let .success(value):
@@ -773,6 +781,15 @@ extension Channel {
     }
 
     
+}
+
+
+private func execute(async queue: DispatchQueue? = nil, work: @escaping () -> Void) {
+    if let queue = queue {
+        queue.async(execute: work)
+    } else {
+        work()
+    }
 }
 
 // ideas for extending:
