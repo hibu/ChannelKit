@@ -243,13 +243,15 @@ public class Channel<T> {
     ///
     /// - Parameter transform: Defines how to map the result
     /// - Returns: returns a new Channel of potentially a different type
-    fileprivate func bind<U>(transform: @escaping (Result<T>) -> Result<U>?) -> Channel<U> {
+    fileprivate func bind<U>(queue: DispatchQueue = .global(), transform: @escaping (Result<T>) -> Result<U>?) -> Channel<U> {
         return lock.sync {
             assert(!cancelled, "Input was cancelled. Cannot be reused.")
             let channel = Channel<U>(parent: self)
             next = { [weak channel] result in
-                if let new = transform(result) {
-                    channel?.send(result: new)
+                queue.async {
+                    if let new = transform(result) {
+                        channel?.send(result: new)
+                    }
                 }
             }
             channel.debug = self.debug
@@ -261,14 +263,16 @@ public class Channel<T> {
     ///
     /// - Parameter transform: Defines how to map the result
     /// - Returns: returns a new Channel of potentially a different type
-    fileprivate func bind2<U>(transform: @escaping (Result<T>, (Result<U>?) -> Void) -> Void) -> Channel<U> {
+    fileprivate func bind2<U>(queue: DispatchQueue = .global(), transform: @escaping (Result<T>, (Result<U>?) -> Void) -> Void) -> Channel<U> {
         return lock.sync {
             assert(!cancelled, "Input was cancelled. Cannot be reused.")
             let channel = Channel<U>(parent: self)
             next = { [weak channel] result in
-                transform(result) { new in
-                    if let new = new {
-                        channel?.send(result: new)
+                queue.async {
+                    transform(result) { new in
+                        if let new = new {
+                            channel?.send(result: new)
+                        }
                     }
                 }
             }
@@ -448,8 +452,8 @@ extension Channel {
     ///
     /// - Parameter transform: Defines how to map the values
     /// - Returns: returns a new Channel of potentially a different type
-    public func map<U>(transform: @escaping (T) -> U) -> Channel<U> {
-        return bind { result in
+    public func map<U>(queue: DispatchQueue = .global(), transform: @escaping (T) -> U) -> Channel<U> {
+        return bind(queue: queue) { result in
             switch result {
             case let .success(value):
                 return Result(value: transform(value))
@@ -464,8 +468,8 @@ extension Channel {
     ///
     /// - Parameter transform: Defines how to map the values
     /// - Returns: returns a new Channel of potentially a different type
-    public func map<U>(transform: @escaping (T, (U?) -> Void) -> Void) -> Channel<U> {
-        return bind2 { result, completion in
+    public func map<U>(queue: DispatchQueue = .global(), transform: @escaping (T, (U?) -> Void) -> Void) -> Channel<U> {
+        return bind2(queue: queue) { result, completion in
             switch result {
             case let .success(value):
                 transform(value) { new in
@@ -486,8 +490,8 @@ extension Channel {
     ///
     /// - Parameter isIncluded: A closure that takes a value and decides if it should be sent or not.
     /// - Returns: returns a new channel of the same type.
-    public func filter(isIncluded: @escaping (T) -> Bool) -> Channel<T> {
-        return bind { result in
+    public func filter(queue: DispatchQueue = .global(), isIncluded: @escaping (T) -> Bool) -> Channel<T> {
+        return bind(queue: queue) { result in
             switch result {
             case let .success(value):
                 if isIncluded(value) {
@@ -504,8 +508,8 @@ extension Channel {
     ///
     /// - Parameter isIncluded: A closure that takes a value and decides if it should be sent or not.
     /// - Returns: returns a new channel of the same type.
-    public func filter(isIncluded: @escaping (T, (Bool) -> Void) -> Void) -> Channel<T> {
-        return bind2 { result, completion in
+    public func filter(queue: DispatchQueue = .global(), isIncluded: @escaping (T, (Bool) -> Void) -> Void) -> Channel<T> {
+        return bind2(queue: queue) { result, completion in
             switch result {
             case let .success(value):
                 isIncluded(value) { flag in
@@ -528,10 +532,10 @@ extension Channel {
     ///   - initialResult: could be an empty collection or string or 0
     ///   - nextPartialResult: a closure that returns a partial result
     /// - Returns: a new channel of the type of the initial result
-    public func reduce<U>(initialResult: U, nextPartialResult: @escaping (U, T) -> U) -> Channel<U> {
+    public func reduce<U>(queue: DispatchQueue = .global(), initialResult: U, nextPartialResult: @escaping (U, T) -> U) -> Channel<U> {
         var currentResult = initialResult // this mutable variable should really be protected by the lock
 
-        return bind { result in
+        return bind(queue: queue) { result in
             switch result {
             case let .success(value):
                 currentResult = nextPartialResult(currentResult, value)
@@ -548,10 +552,10 @@ extension Channel {
     ///   - initialResult: could be an empty collection or string or 0
     ///   - nextPartialResult: a closure that returns a partial result
     /// - Returns: a new channel of the type of the initial result
-    public func reduce<U>(initialResult: U, nextPartialResult: @escaping (U, T, (U) -> Void) -> Void) -> Channel<U> {
+    public func reduce<U>(queue: DispatchQueue = .global(), initialResult: U, nextPartialResult: @escaping (U, T, (U) -> Void) -> Void) -> Channel<U> {
         var currentResult = initialResult // this mutable variable should really be protected by the lock
         
-        return bind2 { result, completion in
+        return bind2(queue: queue) { result, completion in
             switch result {
             case let .success(value):
                 nextPartialResult(currentResult, value) { new in
@@ -602,7 +606,7 @@ extension Channel where T: Stream {
     ///
     /// - Parameter transform: a closure that converts results
     /// - Returns: a new channel
-    public func flatBind<U, V>(transform: @escaping (Result<U>) -> Result<V>?) -> Channel<V> {
+    public func flatBind<U, V>(queue: DispatchQueue = .global(), transform: @escaping (Result<U>) -> Result<V>?) -> Channel<V> {
         return lock.sync {
             assert(!cancelled, "Input was cancelled. Cannot be reused.")
             let retains: [Any] = [self]
@@ -613,16 +617,20 @@ extension Channel where T: Stream {
                     switch result {
                     case let .success(value):
                         let output = (value as! Channel<U>).subscribe(completion: { (subResult) in
-                            if let new = transform(subResult) {
-                                channel.send(result: new)
+                            queue.async {
+                                if let new = transform(subResult) {
+                                    channel.send(result: new)
+                                }
                             }
                         })
                         var retains = channel.parent as! [Any]
                         retains.append(output)
                         channel.parent = retains
                     case let .failure(error):
-                        if let new = transform(Result<U>(error: error)) {
-                            channel.send(result: new)
+                        queue.async {
+                            if let new = transform(Result<U>(error: error)) {
+                                channel.send(result: new)
+                            }
                         }
                     }
                 }
@@ -635,8 +643,8 @@ extension Channel where T: Stream {
     ///
     /// - Parameter transform: a closure that converts values
     /// - Returns: a new channel
-    public func flatMap<U,V>(transform: @escaping (U) -> V? ) -> Channel<V> {
-        return flatBind { (result: Result<U>) -> Result<V>? in
+    public func flatMap<U,V>(queue: DispatchQueue = .global(), transform: @escaping (U) -> V? ) -> Channel<V> {
+        return flatBind(queue: queue) { (result: Result<U>) -> Result<V>? in
             switch result {
             case let .success(value):
                 if let new = transform(value) {
