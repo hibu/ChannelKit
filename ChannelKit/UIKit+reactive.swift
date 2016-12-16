@@ -22,8 +22,11 @@ extension UIView {
     
     public func isHidden(with channel: Channel<Bool>, initialState: Bool = false) {
         let output = channel.subscribe(initial: initialState) { [unowned self] (result) in
-            if case let .success(value) = result {
+            switch result {
+            case let .success(value):
                 self.isHidden = value
+            case .failure(_):
+                self.isHidden = false
             }
         }
         setOutput(output, for: self, key: &hiddenKey)
@@ -34,8 +37,12 @@ extension UIControl {
     
     public func isEnabled(with channel: Channel<Bool>, initialState: Bool = false) {
         let output = channel.subscribe(initial: initialState) { [unowned self] (result) in
-            if case let .success(value) = result {
+            
+            switch result {
+            case let .success(value):
                 self.isEnabled = value
+            case .failure(_):
+                self.isEnabled = false
             }
         }
         setOutput(output, for: self, key: &enabledKey)
@@ -99,8 +106,12 @@ extension UILabel {
     
     public func isEnabled(with channel: Channel<Bool>, initialState: Bool = false) {
         let output = channel.subscribe(initial: initialState) { (result) in
-            if case let .success(value) = result {
+            
+            switch result {
+            case let .success(value):
                 self.isEnabled = value
+            case .failure(_):
+                self.isEnabled = false
             }
         }
         setOutput(output, for: self, key: &enabledKey)
@@ -108,8 +119,12 @@ extension UILabel {
 
     public func text(with channel: Channel<String>, initialState: String = "") {
         let output = channel.subscribe(initial: initialState) { (result) in
-            if case let .success(value) = result {
+
+            switch result {
+            case let .success(value):
                 self.text = value
+            case .failure(_):
+                self.text = ""
             }
         }
         setOutput(output, for: self, key: &textKey)
@@ -174,12 +189,16 @@ extension UIActivityIndicatorView {
     
     public func animate(with channel: Channel<Bool>, initialState: Bool = false) {
         let output = channel.subscribe(initial: initialState) { [unowned self] (result) in
-            if case let .success(value) = result {
+            
+            switch result {
+            case let .success(value):
                 if value {
                     self.startAnimating()
                 } else {
                     self.stopAnimating()
                 }
+            case .failure(_):
+                self.stopAnimating()
             }
         }
         setOutput(output, for: self, key: &animateKey)
