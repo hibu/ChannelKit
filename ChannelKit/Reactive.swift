@@ -256,6 +256,27 @@ public class Channel<T> {
             return channel
         }
     }
+    
+    /// creates a new Channel object and gives a way to map the result. This is the promise version
+    ///
+    /// - Parameter transform: Defines how to map the result
+    /// - Returns: returns a new Channel of potentially a different type
+    fileprivate func bind2<U>(transform: @escaping (Result<T>, (Result<U>?) -> Void) -> Void) -> Channel<U> {
+        return lock.sync {
+            assert(!cancelled, "Input was cancelled. Cannot be reused.")
+            let channel = Channel<U>(parent: self)
+            next = { [weak channel] result in
+                transform(result) { new in
+                    if let new = new {
+                        channel?.send(result: new)
+                    }
+                }
+            }
+            channel.debug = self.debug
+            return channel
+        }
+    }
+
 
     /// Merges the current channel with another specified as a parameter
     ///
@@ -438,6 +459,29 @@ extension Channel {
         }
     }
     
+    
+    /// creates a new Channel object and gives a way to map the value. This is the promise version
+    ///
+    /// - Parameter transform: Defines how to map the values
+    /// - Returns: returns a new Channel of potentially a different type
+    public func map<U>(transform: @escaping (T, (U?) -> Void) -> Void) -> Channel<U> {
+        return bind2 { result, completion in
+            switch result {
+            case let .success(value):
+                transform(value) { new in
+                    if let new = new {
+                        completion(Result(value: new))
+                    } else {
+                        completion(nil)
+                    }
+                }
+            case let .failure(error):
+                completion(Result(error: error))
+            }
+        }
+    }
+
+    
     /// filtering function
     ///
     /// - Parameter isIncluded: A closure that takes a value and decides if it should be sent or not.
@@ -453,6 +497,27 @@ extension Channel {
                 return Result(error: error)
             }
             return nil
+        }
+    }
+    
+    /// filtering function. Promise version
+    ///
+    /// - Parameter isIncluded: A closure that takes a value and decides if it should be sent or not.
+    /// - Returns: returns a new channel of the same type.
+    public func filter(isIncluded: @escaping (T, (Bool) -> Void) -> Void) -> Channel<T> {
+        return bind2 { result, completion in
+            switch result {
+            case let .success(value):
+                isIncluded(value) { flag in
+                    if flag {
+                        completion(result)
+                    } else {
+                        completion(nil)
+                    }
+                }
+            case let .failure(error):
+                completion(Result(error: error))
+            }
         }
     }
     
@@ -476,11 +541,39 @@ extension Channel {
             }
         }
     }
+    
+    /// Reduce function. Promise version.
+    ///
+    /// - Parameters:
+    ///   - initialResult: could be an empty collection or string or 0
+    ///   - nextPartialResult: a closure that returns a partial result
+    /// - Returns: a new channel of the type of the initial result
+    public func reduce<U>(initialResult: U, nextPartialResult: @escaping (U, T, (U) -> Void) -> Void) -> Channel<U> {
+        var currentResult = initialResult // this mutable variable should really be protected by the lock
+        
+        return bind2 { result, completion in
+            switch result {
+            case let .success(value):
+                nextPartialResult(currentResult, value) { new in
+                    currentResult = new
+                    completion(Result(value: currentResult))
+                }
+                
+            case let .failure(error):
+                completion(Result(error: error))
+            }
+        }
+    }
+
 
 }
 
 extension Channel where T: Equatable {
     
+    
+    /// forwards distinct consecutive values
+    ///
+    /// - Returns: returns a channel which consecutive values are distinct.
     public func distinct() -> Channel<T> {
         return bind { [unowned self] result -> Result<T>? in
             
@@ -504,6 +597,11 @@ extension Channel: Stream {}
 
 extension Channel where T: Stream {
     
+    
+    /// given a channel of channels, flattens and returns a channel of results
+    ///
+    /// - Parameter transform: a closure that converts results
+    /// - Returns: a new channel
     public func flatBind<U, V>(transform: @escaping (Result<U>) -> Result<V>?) -> Channel<V> {
         return lock.sync {
             assert(!cancelled, "Input was cancelled. Cannot be reused.")
@@ -533,7 +631,10 @@ extension Channel where T: Stream {
         }
     }
     
-    
+    /// given a channel of channels, flattens and returns a channel of values
+    ///
+    /// - Parameter transform: a closure that converts values
+    /// - Returns: a new channel
     public func flatMap<U,V>(transform: @escaping (U) -> V? ) -> Channel<V> {
         return flatBind { (result: Result<U>) -> Result<V>? in
             switch result {
@@ -553,6 +654,11 @@ extension Channel where T: Stream {
 
 extension Channel {
     
+    
+    /// sends values every time interval or more. Drops values sent too frequently.
+    ///
+    /// - Parameter interval: Time interval in seconds
+    /// - Returns: returns a new channel
     public func throttle(_ interval: TimeInterval) -> Channel<T> {
         var waitUntilDate: Date = Date()
         var timer: DispatchSourceTimer?
@@ -592,11 +698,77 @@ extension Channel {
         return channel!
     }
     
+    
+    /// groups values and sends them (in an array) at every interval
+    ///
+    /// - Parameter interval: time interval in seconds
+    /// - Returns: returns a new channel
+    public func group(_ interval: TimeInterval) -> Channel<[T]> {
+        var waitUntilDate: Date = Date()
+        var timer: DispatchSourceTimer?
+        var channel: Channel<[T]>?
+        var group = [T]()
+        
+        func scheduleTimer(_ interval: TimeInterval, handler: @escaping () -> Void) -> DispatchSourceTimer {
+            let timer = DispatchSource.makeTimerSource(queue: Queue.main)
+            timer.setEventHandler(handler: handler)
+            timer.scheduleOneshot(deadline: .now() + interval, leeway: .milliseconds(20))
+            timer.resume()
+            return timer
+        }
+        
+        channel = bind { result -> Result<[T]>? in
+            
+            if waitUntilDate.timeIntervalSinceNow < 0 {
+                timer?.cancel()
+                timer = nil
+                
+                waitUntilDate = Date(timeIntervalSinceNow: interval)
+
+                switch result {
+                case let .success(value):
+                    group.append(value)
+                    let result = Result(value: group)
+                    group = []
+                    return result
+                case let .failure(error):
+                    group = []
+                    return Result(error: error)
+                }
+                
+            } else {
+                let newInterval = waitUntilDate.timeIntervalSinceNow
+                timer?.cancel()
+                timer = nil
+                
+                switch result {
+                case let .success(value):
+                    group.append(value)
+                case let .failure(error):
+                    group = []
+                    return Result(error: error)
+                }
+                
+                timer = scheduleTimer(newInterval) { [weak channel] in
+                    if let channel = channel {
+                        timer = nil
+                        waitUntilDate = Date(timeIntervalSinceNow: interval)
+                        channel.send(result: Result(value: group))
+                        group = []
+                    }
+                }
+                return nil
+            }
+        }
+        
+        return channel!
+    }
+
+    
 }
 
 // ideas for extending:
 
-// - grouping
 // - integration with NetKit
 // - integration with TableViewManager
 

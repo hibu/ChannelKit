@@ -183,8 +183,6 @@ class ChannelKitTests: XCTestCase {
         
         let input = Input<Int>()
         
-        let channel = input.channel
-        
         let output = input.channel.throttle(0.001).subscribe { (result) in
             if case let .success(value) = result {
                 results.append(value)
@@ -205,6 +203,38 @@ class ChannelKitTests: XCTestCase {
             output.cancel()
         }
     }
+    
+    func testChannelGrouping() {
+        let expectation = self.expectation(description: #function)
+        
+        let values = [1,2,3,4,5,6,7,8,9,10]
+        var results = [[Int]]()
+        
+        let input = Input<Int>()
+        
+        let output = input.channel.group(0.001).subscribe { (result) in
+            if case let .success(value) = result {
+                results.append(value)
+            }
+        }
+        
+        for value in values {
+            input.send(value: value)
+        }
+        
+        Queue.global().after(1.0) {
+            XCTAssert(values.count > results.count)
+            XCTAssert(results.count > 1)
+            let flatResults = results.flatMap { $0 }
+            XCTAssert(values == flatResults)
+            expectation.fulfill()
+        }
+        
+        self.waitForExpectations(timeout: 10) { (error: Error?) -> Void in
+            output.cancel()
+        }
+    }
+
 
     
 }
