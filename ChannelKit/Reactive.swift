@@ -29,7 +29,7 @@ enum ChannelError: Error {
 /// has a weak reference on the first channel object
 public final class Input<T> {
     
-    private weak var _channel: Channel<T>?
+    private weak var output: Channel<T>?
     private var cancelled = false
     private var lock: DispatchQueue!
     public var debug = false
@@ -49,12 +49,12 @@ public final class Input<T> {
     public var channel: Channel<T> {
         return lock.sync {
             assert(!cancelled, "Input was cancelled. Cannot be reused.")
-            if let channel = _channel {
+            if let channel = output {
                 channel.debug = debug
                 return channel
             } else {
                 let channel = Channel<T>(parent: self)
-                _channel = channel
+                output = channel
                 channel.debug = debug
                 return channel
             }
@@ -62,7 +62,7 @@ public final class Input<T> {
     }
     
     public func hasChannel() -> Bool {
-        return lock.sync { _channel != nil }
+        return lock.sync { output != nil }
     }
     
     
@@ -75,7 +75,7 @@ public final class Input<T> {
         }
         lock.sync {
             assert(!self.cancelled, "Input was cancelled. Cannot be reused.")
-            self._channel?.send(result: Result(value: value))
+            self.output?.send(result: Result(value: value))
         }
     }
     
@@ -90,7 +90,7 @@ public final class Input<T> {
         lock.sync {
             assert(!self.cancelled, "Input was cancelled. Cannot be reused.")
             for value in values {
-                self._channel?.send(result: Result(value: value))
+                self.output?.send(result: Result(value: value))
             }
         }
     }
@@ -105,7 +105,7 @@ public final class Input<T> {
 
         lock.sync {
             assert(!self.cancelled, "Input was cancelled. Cannot be reused.")
-            self._channel?.send(result: Result(error: error))
+            self.output?.send(result: Result(error: error))
         }
     }
     
@@ -117,8 +117,8 @@ public final class Input<T> {
         }
 
         lock.sync {
-            self._channel?.send(result: Result(error: ChannelError.cancelled))
-            self._channel = nil
+            self.output?.send(result: Result(error: ChannelError.cancelled))
+            self.output = nil
             self.cancelled = true
         }
     }
@@ -192,7 +192,9 @@ public class Channel<T> {
     }
     
     deinit {
-        print("\(self) - deinit")
+        if debug {
+            print("\(self) - deinit")
+        }
         if let cleanup = cleanup {
             Queue.main.async {
                 cleanup()
@@ -202,22 +204,15 @@ public class Channel<T> {
     
     fileprivate func send(result: Result<T>) {
         assert(!lock.isCurrent)
+        assert(!cancelled, "Input was cancelled. Cannot be reused.")
         
         if debug {
             print("\(self) - received \(result)")
         }
         
-//        var next: (Result<T>) -> Void
-        
         let next = lock.sync {
             return self.next
         }
-        
-        _send(result: result, next: next)
-    }
-
-    private func _send(result: Result<T>, next: ((Result<T>) -> Void)?) {
-        assert(!cancelled, "Input was cancelled. Cannot be reused.")
         
         if case let .failure(error) = result {
             do {
@@ -233,12 +228,15 @@ public class Channel<T> {
         last = result
     }
     
+    
+    /// cleans up on the main thread
+    ///
+    /// - Parameter closure: contains the cleanup code
     public func setCleanup(closure: @escaping () -> Void) {
         lock.sync {
             cleanup = closure
         }
     }
-    
     
     
     /// creates a new Channel object and gives a way to map the result
