@@ -27,8 +27,12 @@ class ViewController: UIViewController, UITextFieldDelegate {
         /* as an example, this is how you would implement the previous line without using UIKit+reactive integration:  */
         
 //        let loginEnabledOutput = logic.loginEnabled.subscribe { (result) in
-//            if case let .success(value) = result {
+//            
+//            switch result {
+//            case let .success(value):
 //                self.login.isEnabled = value
+//            case .failure(_):
+//                self.login.isEnabled = false
 //            }
 //        }
 //        outputs.append(loginEnabledOutput)
