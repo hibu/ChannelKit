@@ -40,10 +40,6 @@ end?.subscribe { (result) in
     }
 }
 
-end?.subscribe { (result) in
-    print(result)
-}
-
 input.send(value: str)
 
 PlaygroundPage.current.needsIndefiniteExecution = true

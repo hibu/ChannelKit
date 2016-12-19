@@ -135,7 +135,9 @@ public class Output<T> {
     public var debug = false
     
     deinit {
-        print("\(self) - deinit")
+        if debug {
+            print("\(self) - deinit")
+        }
     }
     
     fileprivate init(parent: AnyObject, queue: Queue, completion: @escaping (Result<T>) -> Void) {
@@ -174,6 +176,8 @@ public class Channel<T> {
     public private(set) var last: Result<T>?
     private var cleanup: (() -> Void)?
     public var debug = false
+    private var subscribed = false
+    private var split = false
     
     fileprivate var next: ((Result<T>) -> Void)? {
         willSet(new) {
@@ -382,9 +386,9 @@ public class Channel<T> {
     /// - Parameter transform: Optional transform closure lets you specify what happens to the values
     /// - Returns: a couple of channels of the same type.
     public func split(count: Int = 2, queue: DispatchQueue? = nil, transform: ((Result<T>, ([Result<T>?]) -> Void) -> Void)? = nil) -> [Channel<T>] {
-        
         return lock.sync {
             assert(!cancelled, "Input was cancelled. Cannot be reused.")
+            assert((self.next == nil || split) && !subscribed, "This channel node cannot be split")
             
             let channels = Array(1...count).map { (_) -> Channel<T> in
                 let c = Channel(parent: self)
@@ -396,7 +400,11 @@ public class Channel<T> {
                 return Weak(value: c)
             }
             
-            next = { result in
+            let next = self.next
+            self.next = nil
+            split = true
+            self.next = { result in
+                next?(result)
                 
                 if let transform = transform {
                     execute(async: queue) {
@@ -429,11 +437,14 @@ public class Channel<T> {
     public func subscribe(initial: T? = nil, queue: DispatchQueue = .main, completion: @escaping (Result<T>) -> Void) -> Output<T> {
         return lock.sync {
             assert(!cancelled, "Input was cancelled. Cannot be reused.")
+            assert((self.next == nil || subscribed) && !split, "This channel node can not be used for subscribing.")
+            
             let output = Output(parent: self, queue: queue, completion: completion)
             output.debug = self.debug
             output.last = self.last
             let next = self.next
             self.next = nil
+            subscribed = true
             self.next = { [weak output] result in
                 next?(result)
                 output?.send(result: result)
