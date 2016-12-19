@@ -1,6 +1,6 @@
 //
 //  Dispatch.swift
-//  YellMerchants
+//  ChannelKit
 //
 //  Created by Marc Palluat de Besset on 07/01/2016.
 //  Copyright © 2016 hibu. All rights reserved.
@@ -103,7 +103,7 @@ extension DispatchQueue {
         }
     }
     
-    func after(_ delay: TimeInterval, execute closure: @escaping () -> Void) {
+    public func after(_ delay: TimeInterval, execute closure: @escaping () -> Void) {
         asyncAfter(deadline: .now() + delay, execute: closure)
     }
     

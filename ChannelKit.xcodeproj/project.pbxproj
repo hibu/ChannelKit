@@ -50,6 +50,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		494F279B1E054A8E00A157F1 /* playground.playground */ = {isa = PBXFileReference; lastKnownFileType = file.playground; path = playground.playground; sourceTree = "<group>"; };
 		BB17C2911E02B5EB00E254D9 /* Foundation+reactive.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "Foundation+reactive.swift"; sourceTree = "<group>"; };
 		BBD3DEA61E01A09D0061EC19 /* ChannelKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = ChannelKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		BBD3DEA91E01A09D0061EC19 /* ChannelKit.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ChannelKit.h; sourceTree = "<group>"; };
@@ -110,6 +111,7 @@
 		BBD3DE9C1E01A09D0061EC19 = {
 			isa = PBXGroup;
 			children = (
+				494F279B1E054A8E00A157F1 /* playground.playground */,
 				BBD3DEA81E01A09D0061EC19 /* ChannelKit */,
 				BBD3DEB31E01A09D0061EC19 /* ChannelKitTests */,
 				BBD3DEC51E01A1110061EC19 /* Demo */,

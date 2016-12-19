@@ -20,32 +20,40 @@ private var hiddenKey = "hiddenKey"
 
 extension UIView {
     
-    public func isHidden(with channel: Channel<Bool>, initialState: Bool = false) {
-        let output = channel.subscribe(initial: initialState) { [unowned self] (result) in
-            switch result {
-            case let .success(value):
-                self.isHidden = value
-            case .failure(_):
-                self.isHidden = false
+    public func isHidden(with channel: Channel<Bool>?, initialState: Bool = false) {
+        if let channel = channel {
+            let output = channel.subscribe(initial: initialState) { [unowned self] (result) in
+                switch result {
+                case let .success(value):
+                    self.isHidden = value
+                case .failure(_):
+                    self.isHidden = false
+                }
             }
+            setOutput(output, for: self, key: &hiddenKey)
+        } else {
+            deleteOutput(for: self, key: &hiddenKey)
         }
-        setOutput(output, for: self, key: &hiddenKey)
     }
 }
 
 extension UIControl {
     
-    public func isEnabled(with channel: Channel<Bool>, initialState: Bool = false) {
-        let output = channel.subscribe(initial: initialState) { [unowned self] (result) in
-            
-            switch result {
-            case let .success(value):
-                self.isEnabled = value
-            case .failure(_):
-                self.isEnabled = false
+    public func isEnabled(with channel: Channel<Bool>?, initialState: Bool = false) {
+        if let channel = channel {
+            let output = channel.subscribe(initial: initialState) { [unowned self] (result) in
+                
+                switch result {
+                case let .success(value):
+                    self.isEnabled = value
+                case .failure(_):
+                    self.isEnabled = false
+                }
             }
+            setOutput(output, for: self, key: &enabledKey)
+        } else {
+            deleteOutput(for: self, key: &enabledKey)
         }
-        setOutput(output, for: self, key: &enabledKey)
     }
 }
 
@@ -104,30 +112,38 @@ extension UITextField {
 
 extension UILabel {
     
-    public func isEnabled(with channel: Channel<Bool>, initialState: Bool = false) {
-        let output = channel.subscribe(initial: initialState) { (result) in
-            
-            switch result {
-            case let .success(value):
-                self.isEnabled = value
-            case .failure(_):
-                self.isEnabled = false
+    public func isEnabled(with channel: Channel<Bool>?, initialState: Bool = false) {
+        if let channel = channel {
+            let output = channel.subscribe(initial: initialState) { (result) in
+                
+                switch result {
+                case let .success(value):
+                    self.isEnabled = value
+                case .failure(_):
+                    self.isEnabled = false
+                }
             }
+            setOutput(output, for: self, key: &enabledKey)
+        } else {
+            deleteOutput(for: self, key: &enabledKey)
         }
-        setOutput(output, for: self, key: &enabledKey)
     }
 
-    public func text(with channel: Channel<String>, initialState: String = "") {
-        let output = channel.subscribe(initial: initialState) { (result) in
+    public func text(with channel: Channel<String>?, initialState: String = "") {
+        if let channel = channel {
+            let output = channel.subscribe(initial: initialState) { (result) in
 
-            switch result {
-            case let .success(value):
-                self.text = value
-            case .failure(_):
-                self.text = ""
+                switch result {
+                case let .success(value):
+                    self.text = value
+                case .failure(_):
+                    self.text = ""
+                }
             }
+            setOutput(output, for: self, key: &textKey)
+        } else {
+            deleteOutput(for: self, key: &textKey)
         }
-        setOutput(output, for: self, key: &textKey)
     }
 
 }
@@ -187,33 +203,41 @@ extension UISwitch {
 
 extension UIActivityIndicatorView {
     
-    public func animate(with channel: Channel<Bool>, initialState: Bool = false) {
-        let output = channel.subscribe(initial: initialState) { [unowned self] (result) in
-            
-            switch result {
-            case let .success(value):
-                if value {
-                    self.startAnimating()
-                } else {
+    public func animate(with channel: Channel<Bool>?, initialState: Bool = false) {
+        if let channel = channel {
+            let output = channel.subscribe(initial: initialState) { [unowned self] (result) in
+                
+                switch result {
+                case let .success(value):
+                    if value {
+                        self.startAnimating()
+                    } else {
+                        self.stopAnimating()
+                    }
+                case .failure(_):
                     self.stopAnimating()
                 }
-            case .failure(_):
-                self.stopAnimating()
             }
+            setOutput(output, for: self, key: &animateKey)
+        } else {
+            deleteOutput(for: self, key: &animateKey)
         }
-        setOutput(output, for: self, key: &animateKey)
     }
 }
 
 extension UIProgressView {
     
-    public func progress(with channel: Channel<Float>, initialState: Float = 0) {
-        let output = channel.subscribe(initial: initialState) { [unowned self] (result) in
-            if case let .success(value) = result {
-                self.progress = value
+    public func progress(with channel: Channel<Float>?, initialState: Float = 0) {
+        if let channel = channel {
+            let output = channel.subscribe(initial: initialState) { [unowned self] (result) in
+                if case let .success(value) = result {
+                    self.progress = value
+                }
             }
+            setOutput(output, for: self, key: &progressKey)
+        } else {
+            deleteOutput(for: self, key: &progressKey)
         }
-        setOutput(output, for: self, key: &progressKey)
     }
 }
 
@@ -246,13 +270,17 @@ extension UIStepper {
 
 extension UIImageView {
     
-    public func image(with channel: Channel<UIImage?>, initialState: UIImage? = nil) {
-        let output = channel.subscribe(initial: initialState) { [unowned self] (result) in
-            if case let .success(value) = result {
-                self.image = value
+    public func image(with channel: Channel<UIImage?>?, initialState: UIImage? = nil) {
+        if let channel = channel {
+            let output = channel.subscribe(initial: initialState) { [unowned self] (result) in
+                if case let .success(value) = result {
+                    self.image = value
+                }
             }
+            setOutput(output, for: self, key: &imageKey)
+        } else {
+            deleteOutput(for: self, key: &imageKey)
         }
-        setOutput(output, for: self, key: &imageKey)
     }
 
 }
@@ -271,8 +299,12 @@ fileprivate func deleteInput(for view: UIView, key: UnsafeRawPointer) {
     objc_setAssociatedObject(view, key, nil, .OBJC_ASSOCIATION_RETAIN)
 }
 
-fileprivate func setOutput<T>(_ output: Output<T>?, for view: UIView, key: UnsafeRawPointer) {
+fileprivate func setOutput<T>(_ output: Output<T>, for view: UIView, key: UnsafeRawPointer) {
     objc_setAssociatedObject(view, key, output, .OBJC_ASSOCIATION_RETAIN)
+}
+
+fileprivate func deleteOutput(for view: UIView, key: UnsafeRawPointer) {
+    objc_setAssociatedObject(view, key, nil, .OBJC_ASSOCIATION_RETAIN)
 }
 
 

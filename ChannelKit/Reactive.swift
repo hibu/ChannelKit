@@ -1,6 +1,6 @@
 //
 //  Reactive.swift
-//  ChannelDemo
+//  ChannelKit
 //
 //  Created by Marc Palluat de Besset on 12/12/2016.
 //  Copyright © 2016 hibu. All rights reserved.
@@ -381,34 +381,42 @@ public class Channel<T> {
     /// Allows a channel to be split into two channels of the same type.
     /// - Parameter transform: Optional transform closure lets you specify what happens to the values
     /// - Returns: a couple of channels of the same type.
-    public func split(queue: DispatchQueue? = nil, transform: ((Result<T>, (Result<T>?, Result<T>?) -> Void) -> Void)? = nil) -> (Channel<T>, Channel<T>) {
+    public func split(count: Int = 2, queue: DispatchQueue? = nil, transform: ((Result<T>, ([Result<T>?]) -> Void) -> Void)? = nil) -> [Channel<T>] {
+        
         return lock.sync {
             assert(!cancelled, "Input was cancelled. Cannot be reused.")
-            let a = Channel(parent: self)
-            let b = Channel(parent: self)
-            a.debug = self.debug
-            b.debug = self.debug
             
-            next = { [weak a, weak b] result in
+            let channels = Array(1...count).map { (_) -> Channel<T> in
+                let c = Channel(parent: self)
+                c.debug = self.debug
+                return c
+            }
+            
+            let weakChannels = channels.map { c in
+                return Weak(value: c)
+            }
+            
+            next = { result in
                 
                 if let transform = transform {
                     execute(async: queue) {
-                        transform(result) { (r1, r2) in
-                            if let r = r1 {
-                                a?.send(result: r)
-                            }
-                            if let r = r2 {
-                                b?.send(result: r)
+                        transform(result) { (results) in
+                            assert(results.count == weakChannels.count)
+                            
+                            for (index, c) in weakChannels.enumerated() {
+                                if let r = results[index] {
+                                    c.value?.send(result: r)
+                                }
                             }
                         }
                     }
                 } else {
-                    a?.send(result: result)
-                    b?.send(result: result)
+                    for c in weakChannels {
+                        c.value?.send(result: result)
+                    }
                 }
             }
-            
-            return (a, b)
+            return channels
         }
     }
     
@@ -424,7 +432,10 @@ public class Channel<T> {
             let output = Output(parent: self, queue: queue, completion: completion)
             output.debug = self.debug
             output.last = self.last
-            next = { [weak output] result in
+            let next = self.next
+            self.next = nil
+            self.next = { [weak output] result in
+                next?(result)
                 output?.send(result: result)
             }
             if let initial = initial {
@@ -780,6 +791,14 @@ extension Channel {
 
     
 }
+
+private class Weak<T: AnyObject> {
+    weak var value : T?
+    init (value: T) {
+        self.value = value
+    }
+}
+
 
 
 private func execute(async queue: DispatchQueue? = nil, work: @escaping () -> Void) {
