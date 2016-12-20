@@ -35,3 +35,41 @@ extension NotificationCenter {
     }
     
 }
+
+
+extension Channel {
+    
+    
+    /// Posts a notification for each result
+    ///
+    /// - Parameters:
+    ///   - name: notification name
+    ///   - object: object
+    /// - Returns: Output object
+    public func postResult(name: Notification.Name, object: Any? = nil) -> Output<T> {
+        return self.subscribe { (result) in
+            NotificationCenter.default.post(name: name, object: object ?? self, userInfo: ["result": result])
+        }
+    }
+    
+    /// Posts a notification for each successful value
+    ///
+    /// - Parameters:
+    ///   - name: notification name
+    ///   - object: object
+    /// - Returns: Output object
+    public func postValue(name: Notification.Name, object: Any? = nil) -> Output<T> {
+        return self.subscribe { (result) in
+            
+            switch result {
+            case let .success(value):
+                NotificationCenter.default.post(name: name, object: object ?? self, userInfo: ["value": value])
+            case .failure(_):
+                ()
+            }
+        }
+    }
+
+}
+
+
