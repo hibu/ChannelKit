@@ -237,6 +237,102 @@ class ChannelKitTests: XCTestCase {
         }
     }
 
+    func testMultipleChannelSubscriptions() {
+        let expectation = self.expectation(description: #function)
+        
+        let values = [1,2,3,4,5,6,7,8,9,10]
+        var results = [Int]()
+        
+        let input = Input<Int>()
+        
+        let output1 = input.channel.subscribe { (result) in
+            if case let .success(value) = result {
+                results.append(value)
+            }
+        }
+        
+        let output2 = input.channel.subscribe { (result) in
+            if case let .success(value) = result {
+                results.append(value)
+            }
+        }
+
+        
+        for value in values {
+            input.send(value: value)
+        }
+        
+        Queue.global().after(1.0) {
+            XCTAssert(values.count * 2 == results.count)
+            let expectedValues = values.map { (val) in
+                return [val, val]
+            }
+            XCTAssert(expectedValues.flatMap { $0 } == results)
+            expectation.fulfill()
+        }
+        
+        self.waitForExpectations(timeout: 10) { (error: Error?) -> Void in
+            output1.cancel()
+            output2.cancel()
+        }
+    }
+
+    func testMultipleChannelSplits() {
+        let expectation = self.expectation(description: #function)
+        
+        let values = [1,2,3,4,5,6,7,8,9,10]
+        var results = [Int]()
+        
+        let input = Input<Int>()
+        
+        let channels1 = input.channel.split()
+        let channels2 = input.channel.split()
+        
+        let output1 = channels1[0].subscribe { (result) in
+            if case let .success(value) = result {
+                results.append(value)
+            }
+        }
+        
+        let output2 = channels1[1].subscribe { (result) in
+            if case let .success(value) = result {
+                results.append(value)
+            }
+        }
+        
+        let output3 = channels2[0].subscribe { (result) in
+            if case let .success(value) = result {
+                results.append(value)
+            }
+        }
+
+        let output4 = channels2[1].subscribe { (result) in
+            if case let .success(value) = result {
+                results.append(value)
+            }
+        }
+
+        
+        for value in values {
+            input.send(value: value)
+        }
+        
+        Queue.global().after(1.0) {
+            XCTAssert(values.count * 4 == results.count)
+            let expectedValues = values.map { (val) in
+                return [val, val, val, val]
+            }
+            XCTAssert(expectedValues.flatMap { $0 } == results)
+            expectation.fulfill()
+        }
+        
+        self.waitForExpectations(timeout: 10) { (error: Error?) -> Void in
+            output1.cancel()
+            output2.cancel()
+            output3.cancel()
+            output4.cancel()
+        }
+    }
 
     
 }
