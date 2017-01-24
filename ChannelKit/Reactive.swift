@@ -267,7 +267,7 @@ public class Channel<T> {
     ///
     /// - Parameter transform: Defines how to map the result
     /// - Returns: returns a new Channel of potentially a different type
-    fileprivate func bind<U>(queue: DispatchQueue? = nil, transform: @escaping (Result<T>, (Result<U>?) -> Void) -> Void) -> Channel<U> {
+    fileprivate func bind<U>(queue: DispatchQueue? = nil, transform: @escaping (Result<T>, @escaping (Result<U>?) -> Void) -> Void) -> Channel<U> {
         return lock.sync {
             assert(!cancelled, "Input was cancelled. Cannot be reused.")
             let channel = Channel<U>(parent: self)
@@ -496,7 +496,7 @@ extension Channel {
     ///
     /// - Parameter transform: Defines how to map the values
     /// - Returns: returns a new Channel of potentially a different type
-    public func map<U>(queue: DispatchQueue? = nil, transform: @escaping (T, (U?) -> Void) -> Void) -> Channel<U> {
+    public func map<U>(queue: DispatchQueue? = nil, transform: @escaping (T, @escaping (U?) -> Void) -> Void) -> Channel<U> {
         return bind(queue: queue) { result, completion in
             switch result {
             case let .success(value):
