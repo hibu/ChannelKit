@@ -92,9 +92,11 @@ extension UITextField {
             if !input.hasChannel() {
                 let channel = input.channel
                 self.addTarget(self, action: #selector(textDidChange(_:)), for: .editingChanged)
+                self.addTarget(self, action: #selector(textDidChangeOnExit(_:)), for: .editingDidEndOnExit)
                 channel.setCleanup { [weak self] in
                     if let me = self {
                         me.removeTarget(me, action: #selector(me.textDidChange(_:)), for: .editingChanged)
+                        me.removeTarget(me, action: #selector(me.textDidChange(_:)), for: .editingDidEndOnExit)
                         deleteInput(for: me, key: &inputKey)
                     }
                 }
@@ -107,6 +109,15 @@ extension UITextField {
     public dynamic func textDidChange(_ sender: Any?) {
         let input: Input<String> = getInput(for: self, key: &inputKey)
         input.send(value: text ?? "")
+    }
+    
+    public dynamic func textDidChangeOnExit(_ sender: Any?) {
+        let input: Input<String> = getInput(for: self, key: &inputKey)
+        if let text = text {
+           input.send(value: text + "\n")
+        } else {
+            input.send(value: "\n")
+        }
     }
 }
 
