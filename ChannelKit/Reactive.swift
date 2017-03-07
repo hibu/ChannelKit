@@ -293,10 +293,10 @@ public class Channel<T> {
     ///   - onlyIfBothResultsAvailable: Optional flag. When set, transform will only be called when the two results are available.
     ///   - transform: A closure that allows to specify how to 'mix' the values
     /// - Returns: A new channel of the same type
-    public func join(channel: Channel<T>, onlyIfBothResultsAvailable: Bool = false, queue: DispatchQueue? = nil, transform: @escaping (Result<T>?, Result<T>?, @escaping (Result<T>?) -> Void) -> Void) -> Channel<T> {
+    public func join<U, V>(channel: Channel<U>, onlyIfBothResultsAvailable: Bool = false, queue: DispatchQueue? = nil, transform: @escaping (Result<T>?, Result<U>?, @escaping (Result<V>?) -> Void) -> Void) -> Channel<V> {
         return lock.sync {
             assert(!cancelled, "Input was cancelled. Cannot be reused.")
-            let outChannel = Channel<T>()
+            let outChannel = Channel<V>()
             outChannel.debug = self.debug || channel.debug
             
             let output = channel.subscribe(queue: lock) { [weak outChannel, unowned self] (result) in
@@ -355,11 +355,11 @@ public class Channel<T> {
     ///   - onlyIfBothValuesAvailable: Optional flag. When set, transform will only be called when the two values are available
     ///   - transform: A closure that allows to specify how to 'mix' the values
     /// - Returns: A new channel of the same type
-    public func join(channel: Channel<T>, onlyIfBothValuesAvailable: Bool = false, queue: DispatchQueue = .global(), transform: @escaping (T?, T?, @escaping (T?) -> Void) -> Void) -> Channel<T> {
+    public func join<U, V>(channel: Channel<U>, onlyIfBothValuesAvailable: Bool = false, queue: DispatchQueue = .global(), transform: @escaping (T?, U?, @escaping (V?) -> Void) -> Void) -> Channel<V> {
         
         return join(channel: channel, onlyIfBothResultsAvailable: onlyIfBothValuesAvailable, queue: queue) { (result1, result2, completion) in
             
-            let asyncCompletion = { (value: T?) in
+            let asyncCompletion = { (value: V?) in
                 if let value = value {
                     completion(Result(value: value))
                 }

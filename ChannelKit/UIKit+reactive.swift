@@ -59,9 +59,9 @@ extension UIControl {
 
 extension UIButton {
     
-    public var channel: Channel<Void> {
+    public var channel: Channel<Bool> {
         get {
-            let input: Input<Void> = getInput(for: self, key: &inputKey)
+            let input: Input<Bool> = getInput(for: self, key: &inputKey)
             if !input.hasChannel() {
                 let channel = input.channel
                 self.addTarget(self, action: #selector(tap(_:)), for: .touchUpInside)
@@ -78,8 +78,9 @@ extension UIButton {
     }
     
     dynamic public func tap(_ sender: Any?) {
-        let input: Input<Void> = getInput(for: self, key: &inputKey)
-        input.send(value: ())
+        let input: Input<Bool> = getInput(for: self, key: &inputKey)
+        input.send(value: true)
+        input.send(value: false)
     }
     
 }
