@@ -47,22 +47,41 @@ public final class Input<T> {
     
     /// get the current channel or return a new one if none exist.
     public var channel: Channel<T> {
-        return lock.sync {
-            assert(!cancelled, "Input was cancelled. Cannot be reused.")
-            if let channel = output {
-                channel.debug = debug
-                return channel
-            } else {
-                let channel = Channel<T>(parent: self)
-                output = channel
-                channel.debug = debug
-                return channel
+        get {
+            return lock.sync {
+                assert(!cancelled, "Input was cancelled. Cannot be reused.")
+                if let channel = output {
+                    channel.debug = debug
+                    return channel
+                } else {
+                    let channel = Channel<T>(parent: self)
+                    output = channel
+                    channel.debug = debug
+                    return channel
+                }
             }
         }
     }
     
+    public func deleteChannel() {
+        output = nil
+    }
+    
     public func hasChannel() -> Bool {
         return lock.sync { output != nil }
+    }
+    
+    /// send a result through the channel
+    ///
+    /// - Parameter result: the result to be sent
+    public func send(_ result: Result<T>) {
+        if debug {
+            print("\(self) - sending: \(result)")
+        }
+        lock.sync {
+            assert(!self.cancelled, "Input was cancelled. Cannot be reused.")
+            self.output?.send(result: result)
+        }
     }
     
     
@@ -284,7 +303,83 @@ public class Channel<T> {
             return channel
         }
     }
+    
+    /// Merges the current channel with another specified as a parameter
+    ///
+    /// - Parameters:
+    ///   - channel: A channel to be merged with the receiver
+    ///   - onlyIfBothResultsAvailable: Optional flag. When set, transform will only be called when the two results are available.
+    ///   - transform: A closure that allows to specify how to 'mix' the values
+    /// - Returns: A new channel of the same type
 
+    public func join<U, V>(channel: Channel<U>, queue: DispatchQueue? = nil, transform: @escaping (Result<T>?, Result<U>?, Result<T>?, Result<U>?, @escaping (Result<V>?) -> Void) -> Void) -> Channel<V> {
+        return lock.sync {
+            assert(!cancelled, "Input was cancelled. Cannot be reused.")
+            let outChannel = Channel<V>()
+            outChannel.debug = self.debug || channel.debug
+            
+            let output = channel.subscribe(queue: lock) { [weak outChannel, unowned self, unowned channel] (result) in
+                execute(async: queue) {
+                    transform(self.last, channel.last, nil, result) { value in
+                        if let value = value {
+                            outChannel?.send(result: value)
+                        }
+                    }
+                }
+            }
+            
+            next = { [weak outChannel, unowned self, unowned channel] result in
+                execute(async: queue) {
+                    transform(self.last, channel.last, result, nil) { value in
+                        if let value = value {
+                            outChannel?.send(result: value)
+                        }
+                    }
+                }
+            }
+            
+            outChannel.parent = [self, output]
+            return outChannel
+        }
+    }
+    
+    public func join<U, V>(channel: Channel<U>, queue: DispatchQueue = .global(), transform: @escaping (T?, U?, T?, U?, @escaping (V?) -> Void) -> Void) -> Channel<V> {
+        
+        return join(channel: channel, queue: queue) { (lastResult1: Result<T>?, lastResult2: Result<U>?, result1: Result<T>?, result2: Result<U>?, completion) in
+            
+            var last1: T? = nil
+            var last2: U? = nil
+            
+            let asyncCompletion = { (value: V?) in
+                if let value = value {
+                    completion(Result(value: value))
+                }
+            }
+            
+            if let result = lastResult1, case let .success(val) = result {
+                last1 = val
+            }
+            
+            if let result = lastResult2, case let .success(val) = result {
+                last2 = val
+            }
+            
+            switch (result1, result2) {
+            case (let .some(.success(value1)), let .some(.success(value2))):
+                transform(last1, last2, value1, value2, asyncCompletion)
+            case (let .some(.success(value1)), .none):
+                transform(last1, last2, value1, nil, asyncCompletion)
+            case (.none, let .some(.success(value2))):
+                transform(last1, last2, nil, value2, asyncCompletion)
+            case (let .some(.failure(error)), _):
+                completion(Result(error: error))
+            case (_, let .some(.failure(error))):
+                completion(Result(error: error))
+            default:
+                completion(nil)
+            }
+        }
+    }
 
     /// Merges the current channel with another specified as a parameter
     ///

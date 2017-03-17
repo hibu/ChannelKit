@@ -77,6 +77,11 @@ extension UIButton {
         }
     }
     
+    public func deleteChannel() {
+        let input: Input<String> = getInput(for: self, key: &inputKey)
+        input.deleteChannel()
+    }
+    
     dynamic public func tap(_ sender: Any?) {
         let input: Input<Bool> = getInput(for: self, key: &inputKey)
         input.send(value: true)
@@ -105,6 +110,11 @@ extension UITextField {
             }
             return input.channel
         }
+    }
+    
+    public func deleteChannel() {
+        let input: Input<String> = getInput(for: self, key: &inputKey)
+        input.deleteChannel()
     }
 
     public dynamic func textDidChange(_ sender: Any?) {
