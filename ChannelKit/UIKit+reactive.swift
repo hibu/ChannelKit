@@ -9,13 +9,13 @@
 import UIKit
 import ObjectiveC
 
-private var inputKey = "inputkey"
-private var enabledKey = "enabledKey"
-private var textKey = "textKey"
-private var animateKey = "animateKey"
-private var progressKey = "progressKey"
-private var imageKey = "imageKey"
-private var hiddenKey = "hiddenKey"
+fileprivate var inputKey = "inputkey"
+fileprivate var enabledKey = "enabledKey"
+fileprivate var textKey = "textKey"
+fileprivate var animateKey = "animateKey"
+fileprivate var progressKey = "progressKey"
+fileprivate var imageKey = "imageKey"
+fileprivate var hiddenKey = "hiddenKey"
 
 
 extension UIView {
@@ -77,11 +77,6 @@ extension UIButton {
         }
     }
     
-    public func deleteChannel() {
-        let input: Input<String> = getInput(for: self, key: &inputKey)
-        input.deleteChannel()
-    }
-    
     dynamic public func tap(_ sender: Any?) {
         let input: Input<Bool> = getInput(for: self, key: &inputKey)
         input.send(value: true)
@@ -112,11 +107,6 @@ extension UITextField {
         }
     }
     
-    public func deleteChannel() {
-        let input: Input<String> = getInput(for: self, key: &inputKey)
-        input.deleteChannel()
-    }
-
     public dynamic func textDidChange(_ sender: Any?) {
         let input: Input<String> = getInput(for: self, key: &inputKey)
         input.send(value: text ?? "")
@@ -306,6 +296,31 @@ extension UIImageView {
     }
 
 }
+
+extension Input {
+    
+    public func adapt(view: UIView) {
+        
+        switch view {
+        case let textField as UITextField:
+            let input: Input<T> = getInput(for: textField, key: &inputKey)
+            input.deleteChannel()
+            let channel = textField.channel
+            channel.debug = input.debug // this is to quiet a warning
+            adapt(channel: input.channel)
+        case let button as UIButton:
+            let input: Input<T> = getInput(for: button, key: &inputKey)
+            input.deleteChannel()
+            let channel = button.channel
+            channel.debug = input.debug // this is to quiet a warning
+            adapt(channel: input.channel)
+        default:
+            ()
+        }
+    }
+
+}
+
 
 fileprivate func getInput<T>(for view: UIView, key: UnsafeRawPointer) -> Input<T> {
     if let input = objc_getAssociatedObject(view, key) as? Input<T> {

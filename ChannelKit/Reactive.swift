@@ -21,8 +21,9 @@ public enum Result<T> {
     }
 }
 
-enum ChannelError: Error {
+public enum ChannelError: Error {
     case cancelled
+    case response(HTTPURLResponse)
 }
 
 /// The 'WRITE' end of a channel
@@ -30,8 +31,10 @@ enum ChannelError: Error {
 public final class Input<T> {
     
     private weak var output: Channel<T>?
+    private var adaptOutput: Output<T>?
     private var cancelled = false
     private var lock: DispatchQueue!
+
     public var debug = false
     
     public init () {
@@ -64,7 +67,9 @@ public final class Input<T> {
     }
     
     public func deleteChannel() {
-        output = nil
+        lock.sync {
+            output = nil
+        }
     }
     
     public func hasChannel() -> Bool {
@@ -141,6 +146,22 @@ public final class Input<T> {
             self.cancelled = true
         }
     }
+    
+    public func adapt(channel: Channel<T>?) {
+        if let channel = channel {
+            adaptOutput = channel.subscribe { (result) in
+                self.send(result)
+            }
+        } else {
+            adaptOutput = nil
+        }
+    }
+    
+    public func adapt(input: Input<T>?) {
+        input?.deleteChannel()
+        adapt(channel: input?.channel)
+    }
+
 }
 
 // This is the 'read/notify' end of the channel
