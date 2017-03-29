@@ -282,6 +282,22 @@ public class Channel<T> {
         }
     }
     
+    /// creates a new Channel object that can be mapped or subscribed to multiple times
+    ///
+    /// - Returns: returns a new Channel
+    public func multi() -> Channel<T> {
+        return lock.sync {
+            assert(!cancelled, "Input was cancelled. Cannot be reused.")
+            let channel = MultiChannel<T>(parent: self)
+            next = { [weak channel] result in
+                execute(async: nil) {
+                    channel?.send(result: result)
+                }
+            }
+            channel.debug = self.debug
+            return channel
+        }
+    }
     
     /// creates a new Channel object and gives a way to map the result
     ///
@@ -571,6 +587,16 @@ public class Channel<T> {
             return output
         }
     }
+    
+    public func subscribeOnSuccess(initial: T? = nil, queue: DispatchQueue = .main, completion: @escaping (T) -> Void) -> Output<T> {
+
+        return subscribe(initial: initial, queue: queue, completion: { (result) in
+            if case let .success(val) = result {
+                completion(val)
+            }
+        })
+    }
+
     
     /// sometimes, releasing the output is not practical, so instead you can just call cancel
     func cancel() {
@@ -917,6 +943,79 @@ extension Channel {
     }
 
     
+}
+
+private class MultiChannel<T> : Channel<T> {
+    
+    var outChannel: Channel<T>!
+    
+    fileprivate override init(parent: Any) {
+        super.init(parent: parent)
+    
+        outChannel = super.bind { $0 }
+    }
+
+    fileprivate override func bind<U>(queue: DispatchQueue? = nil, transform: @escaping (Result<T>) -> Result<U>?) -> Channel<U> {
+        
+        return lock.sync {
+            let channels = outChannel.split()
+            outChannel = channels[0]
+            return channels[1].bind(queue: queue, transform: transform)
+        }
+    }
+    
+    fileprivate override func bind<U>(queue: DispatchQueue? = nil, transform: @escaping (Result<T>, @escaping (Result<U>?) -> Void) -> Void) -> Channel<U> {
+
+        return lock.sync {
+            let channels = outChannel.split()
+            outChannel = channels[0]
+            return channels[1].bind(queue: queue, transform: transform)
+        }
+    }
+
+    public override func join<U, V>(channel: Channel<U>, queue: DispatchQueue? = nil, transform: @escaping (Result<T>?, Result<U>?, Result<T>?, Result<U>?, @escaping (Result<V>?) -> Void) -> Void) -> Channel<V> {
+        
+        return lock.sync {
+            let channels = outChannel.split()
+            outChannel = channels[0]
+            return channels[1].join(channel: channel, queue: queue, transform: transform)
+        }
+    }
+    
+    public override func join<U, V>(channel: Channel<U>, onlyIfBothResultsAvailable: Bool = false, queue: DispatchQueue? = nil, transform: @escaping (Result<T>?, Result<U>?, @escaping (Result<V>?) -> Void) -> Void) -> Channel<V> {
+        
+        return lock.sync {
+            let channels = outChannel.split()
+            outChannel = channels[0]
+            return channels[1].join(channel: channel, onlyIfBothResultsAvailable: onlyIfBothResultsAvailable, queue: queue, transform: transform)
+        }
+    }
+    
+    public override func split(count: Int = 2, queue: DispatchQueue? = nil, transform: ((Result<T>, ([Result<T>?]) -> Void) -> Void)? = nil) -> [Channel<T>] {
+        
+        return lock.sync {
+            let channels = outChannel.split()
+            outChannel = channels[0]
+            return channels[1].split(count: count, queue: queue, transform: transform)
+        }
+    }
+    
+    public override func subscribe(initial: T? = nil, queue: DispatchQueue = .main, completion: @escaping (Result<T>) -> Void) -> Output<T> {
+        
+        return lock.sync {
+            let channels = outChannel.split()
+            outChannel = channels[0]
+            return channels[1].subscribe(initial: initial, queue: queue, completion: completion)
+        }
+    }
+
+}
+
+extension MultiChannel where T: Stream {
+    
+//    fileprivate override func flatBind<U, V>(queue: DispatchQueue? = nil, transform: @escaping (Result<U>) -> Result<V>?) -> Channel<V> {
+//        
+//    }
 }
 
 private class Weak<T: AnyObject> {
