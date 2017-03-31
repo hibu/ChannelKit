@@ -285,7 +285,7 @@ public class Channel<T> {
     /// creates a new Channel object that can be mapped or subscribed to multiple times
     ///
     /// - Returns: returns a new Channel
-    public func multi() -> Channel<T> {
+    public func multi() -> MultiChannel<T> {
         return lock.sync {
             assert(!cancelled, "Input was cancelled. Cannot be reused.")
             let channel = MultiChannel<T>(parent: self)
@@ -945,7 +945,7 @@ extension Channel {
     
 }
 
-private class MultiChannel<T> : Channel<T> {
+public class MultiChannel<T> : Channel<T> {
     
     var outChannel: Channel<T>!
     
@@ -1010,6 +1010,34 @@ private class MultiChannel<T> : Channel<T> {
     }
 
 }
+
+extension MultiChannel where T: Equatable {
+    
+    /// forwards distinct consecutive values
+    ///
+    /// - Returns: returns a channel which consecutive values are distinct.
+    
+    
+    // note: as extension func's cannot be overriden currently (swift3),
+    // you should use multi_distinct() and not distinct() when using a MultiChannel.
+    public func multi_distinct() -> Channel<T> {
+        return bind { [unowned self] result -> Result<T>? in
+            
+            switch (result, self.last) {
+            case (let .success(value1), let .some(.success(value2))) where value1 != value2:
+                return result
+            case (.success(_), .none):
+                return result
+            case (let .failure(error), .none):
+                return Result(error: error)
+            default:
+                return nil
+            }
+        }
+    }
+    
+}
+
 
 extension MultiChannel where T: Stream {
     
