@@ -12,11 +12,11 @@ import ChannelKit
 class LoginLogic {
     var email: Channel<String>
     var password: Channel<String>
-    var login: Channel<Void>
-    private var loginOutput: Output<Void>?
+    var login: Channel<Bool>
+    private var loginOutput: Output<Bool>?
     private var loginActionInput: Input<(String,String)>?
     
-    init(email: Channel<String>, password: Channel<String>, login: Channel<Void>) {
+    init(email: Channel<String>, password: Channel<String>, login: Channel<Bool>) {
         self.email = email
         self.password = password
         self.login = login
